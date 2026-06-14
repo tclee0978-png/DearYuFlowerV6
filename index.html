@@ -111,6 +111,7 @@ footer { text-align:center; padding:16px; font-size:.6rem; color:#ccc; letter-sp
 
 <div class="wrap">
 
+  <!-- API KEY -->
   <div class="card">
     <div class="card-label">🔑 Gemini API Key</div>
     <div class="api-row">
@@ -123,6 +124,7 @@ footer { text-align:center; padding:16px; font-size:.6rem; color:#ccc; letter-sp
     </div>
   </div>
 
+  <!-- TOPIC BUTTONS -->
   <div class="card">
     <div class="card-label">🚀 選擇主題・一鍵生成三平台文案</div>
     <div class="topic-grid">
@@ -149,11 +151,13 @@ footer { text-align:center; padding:16px; font-size:.6rem; color:#ccc; letter-sp
     </div>
   </div>
 
+  <!-- GEN BTN -->
   <button class="gen-btn" id="genBtn" onclick="triggerGenerate()">
     <span id="genIcon">✦</span>
     <span id="genLabel">選擇上方主題開始生成</span>
   </button>
 
+  <!-- PLATFORM LINKS -->
   <div class="card" style="padding:13px 18px;">
     <div class="link-row">
       <span class="link-label">📲 直接發文</span>
@@ -164,6 +168,7 @@ footer { text-align:center; padding:16px; font-size:.6rem; color:#ccc; letter-sp
     </div>
   </div>
 
+  <!-- OUTPUT COLUMNS -->
   <div class="out-grid">
     <div class="out-col">
       <div class="out-head fb-h">
@@ -261,7 +266,13 @@ function renderText(id, text) {
   var el = document.getElementById(id);
   el.innerHTML = '<div class="out-text"></div>';
   var textEl = el.querySelector('.out-text');
-  var html = text
+  
+  // 核心容錯優化：在前端渲染文案時，順手把 AI 轉義回傳的 \" 還原成更優雅的中文引號或純雙引號
+  var cleanText = text
+    .replace(/\\"/g, '"') // 先將逸出的 \" 還原為普通雙引號
+    .replace(/"([^"\s<>]+)"/g, '「$1」'); // 將內文成對的雙引號美化為中文「」
+    
+  var html = cleanText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -344,28 +355,17 @@ async function doGenerate(apiKey, topic) {
 
     // 1. 剝離 Markdown 外殼
     if (raw.startsWith('```')) {
-      raw = raw.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
+      raw = raw.replace(/^
+```json\s*/i, '').replace(/```$/, '').trim();
     }
-
-    // 2. 終極上游救援矩陣：在 JSON.parse 前，將文案中間未轉義的孤立雙引號自動修正為標準中文雙引號「」
-    var refinedRaw = raw;
-    var quoteCount = 0;
-    refinedRaw = refinedRaw.replace(/(?<!^|\{|\s*,\s*)"(?!Content|_h|plat|btn|col|grid|wrap|card|label|row|api|hint|link|head|body|text|ph|shimmer|toast|footer|apiKey|topics|topicExtra|brandDNA|toggleKey|showToast|setLoading|shimmer|renderText|selectTopic|triggerGenerate|doGenerate|copyCol|fb|ig|th|OBJECT|STRING|\s*:\s*"|\s*,\s*"\w+"\s*:|\s*\}\s*$)/g, function() {
-      quoteCount++;
-      return (quoteCount % 2 === 1) ? '「' : '」';
-    });
 
     var parsed;
     try {
-      parsed = JSON.parse(refinedRaw);
+      // 核心修正：不再於上游瞎猜替換引號，100% 交給標準原生 JSON 解析器處理
+      parsed = JSON.parse(raw);
     } catch(parseErr) {
-      // 容錯防禦：若上游變形，改用純淨原始字串解解析
-      try {
-        parsed = JSON.parse(raw);
-      } catch(innerErr) {
-        console.error('【JSON 原始流產字串】:', raw);
-        throw new Error('JSON 格式解析失敗（' + parseErr.message + '），請再次點擊按鈕重新生成。');
-      }
+      console.error('【JSON 原始流產字串】:', raw);
+      throw new Error('JSON 格式解析失敗（' + parseErr.message + '），請再次點擊按鈕重新生成。');
     }
 
     if (!parsed.fb || !parsed.ig || !parsed.th) {
